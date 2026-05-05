@@ -206,7 +206,11 @@ h2 { margin: 0; font-size: 1.05rem; }
 
 .grid { display: grid; gap: 16px; }
 .two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.calendar-area { grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr); margin-top: 16px; }
+.calendar-area {
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  align-items: start;
+  margin-top: 16px;
+}
 .money-row { margin-top: 16px; }
 .panel, .side-card { padding: 18px; }
 .section-title, .calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
@@ -324,16 +328,24 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(77, 214, 168
 }
 .folder-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   color: var(--muted);
   font-size: 0.8rem;
+}
+.folder-stats span {
+  min-width: 0;
+}
+.folder-stats span:first-child {
+  grid-column: 1 / -1;
 }
 .folder-stats strong {
   display: block;
   margin-bottom: 2px;
   color: var(--ink);
   font-size: 0.95rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 .folder-chips {
   display: flex;
