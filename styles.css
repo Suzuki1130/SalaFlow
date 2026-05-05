@@ -208,14 +208,30 @@ h2 { margin: 0; font-size: 1.05rem; }
 .two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .calendar-area {
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
-  align-items: start;
+  align-items: stretch;
   margin-top: 16px;
 }
-.calendar-stack { display: grid; gap: 16px; }
-.money-row {
-  grid-template-columns: minmax(0, 1fr);
-  margin-top: 16px;
+.calendar-panel {
+  height: 690px;
 }
+.salary-panel {
+  height: 345px;
+}
+.calendar-panel {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+}
+.salary-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.salary-panel #entryList {
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.money-row { margin-top: 16px; }
 .panel, .side-card { padding: 18px; }
 .section-title, .calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .button-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
@@ -512,6 +528,8 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(77, 214, 168
   body.sidebar-collapsed .side-card .section-title { margin-bottom: 16px; }
   body.sidebar-collapsed .main { margin-left: 0; }
   .two, .calendar-area { grid-template-columns: 1fr; }
+  .calendar-panel, .salary-panel { height: auto; }
+  .salary-panel #entryList { max-height: 420px; }
 }
 
 @media (max-width: 640px) {
