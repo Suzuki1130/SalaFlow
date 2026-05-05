@@ -151,15 +151,38 @@
     </section>
 
     <section class="grid calendar-area">
-      <article class="panel calendar-panel">
-        <div class="calendar-head">
-          <button id="prevMonth" type="button" title="Previous month">&lt;</button>
-          <h2 id="calendarTitle">Calendar</h2>
-          <button id="nextMonth" type="button" title="Next month">&gt;</button>
-        </div>
-        <div class="weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
-        <div id="calendar" class="calendar"></div>
-      </article>
+      <div class="calendar-stack">
+        <article class="panel calendar-panel">
+          <div class="calendar-head">
+            <button id="prevMonth" type="button" title="Previous month">&lt;</button>
+            <h2 id="calendarTitle">Calendar</h2>
+            <button id="nextMonth" type="button" title="Next month">&gt;</button>
+          </div>
+          <div class="weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+          <div id="calendar" class="calendar"></div>
+        </article>
+
+        <article class="panel" id="budget">
+          <div class="section-title">
+            <h2>Category budgets</h2>
+            <span id="budgetTotalText">0 planned</span>
+          </div>
+          <div class="money-summary" id="budgetSummary">Add plans to see what will be left.</div>
+          <form id="budgetForm" class="money-form">
+            <select id="budgetCategory" required>
+              <option value="Food">Food</option>
+              <option value="Transport">Transport</option>
+              <option value="Bills">Bills</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Savings">Savings</option>
+              <option value="Other">Other</option>
+            </select>
+            <input id="budgetAmount" type="number" min="0" step="1" placeholder="Limit" required>
+            <button type="submit">Add</button>
+          </form>
+          <div id="budgetList" class="stack"></div>
+        </article>
+      </div>
 
       <article class="panel">
         <div class="section-title">
@@ -170,28 +193,7 @@
       </article>
     </section>
 
-    <section class="grid two money-row" id="money">
-      <article class="panel" id="budget">
-        <div class="section-title">
-          <h2>Category budgets</h2>
-          <span id="budgetTotalText">0 planned</span>
-        </div>
-        <div class="money-summary" id="budgetSummary">Add plans to see what will be left.</div>
-        <form id="budgetForm" class="money-form">
-          <select id="budgetCategory" required>
-            <option value="Food">Food</option>
-            <option value="Transport">Transport</option>
-            <option value="Bills">Bills</option>
-            <option value="Shopping">Shopping</option>
-            <option value="Savings">Savings</option>
-            <option value="Other">Other</option>
-          </select>
-          <input id="budgetAmount" type="number" min="0" step="1" placeholder="Limit" required>
-          <button type="submit">Add</button>
-        </form>
-        <div id="budgetList" class="stack"></div>
-      </article>
-
+    <section class="grid money-row" id="money">
       <article class="panel" id="expenses">
         <div class="section-title">
           <h2>Expenses</h2>

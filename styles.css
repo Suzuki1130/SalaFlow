@@ -211,7 +211,11 @@ h2 { margin: 0; font-size: 1.05rem; }
   align-items: start;
   margin-top: 16px;
 }
-.money-row { margin-top: 16px; }
+.calendar-stack { display: grid; gap: 16px; }
+.money-row {
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 16px;
+}
 .panel, .side-card { padding: 18px; }
 .section-title, .calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .button-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
