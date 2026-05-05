@@ -30,7 +30,10 @@
 
     <section class="side-card" id="noteFolders">
       <div class="section-title">
-        <h2>Folders</h2>
+        <div class="folder-header-actions">
+          <h2>Folders</h2>
+          <button id="folderInfo" class="info-button" type="button" title="How folders work" aria-label="How folders work">!</button>
+        </div>
         <button id="addFolder" type="button" title="Add folder">+</button>
       </div>
       <div id="folderList" class="stack"></div>
@@ -40,6 +43,7 @@
   <main class="main" id="dashboard">
     <header class="hero">
       <p>Private browser-saved tracker</p>
+      <div class="current-folder-badge" id="currentFolderBadge">Main salary</div>
       <h1>Plan your next salary before payday arrives.</h1>
     </header>
 
@@ -236,20 +240,37 @@
   <div class="modal-backdrop hidden" id="folderModal" role="dialog" aria-modal="true" aria-labelledby="folderModalTitle">
     <form class="modal" id="folderForm">
       <div class="section-title">
-        <h2 id="folderModalTitle">Add note folder</h2>
+        <h2 id="folderModalTitle">Create folder</h2>
         <button class="ghost-button" id="cancelFolder" type="button" aria-label="Close folder dialog">×</button>
       </div>
       <label>Folder name
-        <input id="folderName" type="text" maxlength="40" placeholder="Last salary, Work memories..." required>
+        <input id="folderName" type="text" maxlength="40" placeholder="April to May salary" required>
       </label>
-      <label>Folder note
-        <textarea id="folderNote" maxlength="160" placeholder="What should this folder remember?"></textarea>
+      <label>Description
+        <textarea id="folderNote" maxlength="160" placeholder="What do you want to track in this folder?"></textarea>
       </label>
       <div class="modal-actions">
         <button class="ghost-button" type="button" id="cancelFolderFooter">Cancel</button>
-        <button class="primary" type="submit">Save folder</button>
+        <button class="primary" type="submit">Create folder</button>
       </div>
     </form>
+  </div>
+
+  <div class="modal-backdrop hidden" id="folderInfoModal" role="dialog" aria-modal="true" aria-labelledby="folderInfoTitle">
+    <div class="modal">
+      <div class="section-title">
+        <h2 id="folderInfoTitle">How folders work</h2>
+        <button class="ghost-button" id="closeFolderInfo" type="button" aria-label="Close folder info">×</button>
+      </div>
+      <div class="info-copy">
+        <p>Each folder is its own salary workspace.</p>
+        <p>Open a folder to change pay settings, add work entries, track budgets, save expenses, and write notes inside that folder only.</p>
+        <p>Your other folders keep their own separate salary data.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="primary" id="closeFolderInfoFooter" type="button">Close</button>
+      </div>
+    </div>
   </div>
 
   <script src="script.js"></script>

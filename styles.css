@@ -156,6 +156,19 @@ body.sidebar-collapsed .main { margin-left: var(--sidebar-collapsed-width); }
 body.sidebar-collapsed .sidebar-toggle { left: calc(var(--sidebar-collapsed-width) - (var(--sidebar-toggle-width) * 0.85)); }
 .hero { display: grid; gap: 6px; margin-bottom: 22px; }
 .hero p { margin: 0; font-weight: 800; }
+.current-folder-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(77, 214, 168, 0.28);
+  border-radius: 999px;
+  background: rgba(77, 214, 168, 0.1);
+  color: var(--green);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
 h1 { max-width: 900px; margin: 0; font-size: clamp(2.1rem, 6vw, 4.7rem); line-height: 0.98; letter-spacing: 0; }
 h2 { margin: 0; font-size: 1.05rem; }
 
@@ -198,6 +211,11 @@ h2 { margin: 0; font-size: 1.05rem; }
 .panel, .side-card { padding: 18px; }
 .section-title, .calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .button-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.folder-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 label { display: grid; gap: 7px; font-size: 0.86rem; font-weight: 800; }
@@ -219,7 +237,6 @@ textarea {
 input:focus, select:focus, textarea:focus { outline: 3px solid rgba(77, 214, 168, 0.18); border-color: var(--green); }
 .wide { grid-column: 1 / -1; }
 .hidden { display: none; }
-
 .primary, .money-form button, .section-title button, .calendar-head button {
   min-height: 42px;
   border-radius: 8px;
@@ -260,6 +277,33 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(77, 214, 168
 .item { display: grid; gap: 7px; }
 .item-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .item-top strong { overflow-wrap: anywhere; }
+.folder-link {
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 900;
+  text-align: left;
+}
+.folder-link:hover { color: var(--green); }
+.info-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+.info-button:hover {
+  color: var(--green);
+  border-color: var(--green);
+}
 .delete {
   min-width: 34px; min-height: 34px;
   border-radius: 8px;
@@ -272,6 +316,56 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(77, 214, 168
   padding: 0 10px;
   background: var(--red);
   color: #21080b;
+}
+.folder-card { gap: 10px; }
+.active-folder {
+  border-color: rgba(77, 214, 168, 0.42);
+  background: linear-gradient(180deg, rgba(18, 37, 31, 0.96), rgba(13, 20, 18, 0.96));
+}
+.folder-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.folder-stats strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+.folder-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.folder-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+.open-folder-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--blue);
+  color: #07110f;
+  font-weight: 900;
+}
+.active-folder .open-folder-button {
+  background: var(--green);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 .meta { font-size: 0.86rem; }
 .fit { color: var(--green); font-weight: 900; }
@@ -319,6 +413,15 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(77, 214, 168
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+.info-copy {
+  display: grid;
+  gap: 10px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+.info-copy p {
+  margin: 0;
 }
 .ghost-button {
   min-height: 42px;
@@ -400,4 +503,5 @@ input:focus, select:focus, textarea:focus { outline: 3px solid rgba(77, 214, 168
   .form-grid, .money-form { grid-template-columns: 1fr; }
   .day { min-height: 66px; padding: 6px; }
   .day-note { display: none; }
+  .folder-stats { grid-template-columns: 1fr; }
 }

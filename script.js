@@ -8,6 +8,7 @@ let calendarDate = firstOfMonth(new Date());
 let pendingDelete = null;
 let entryStatusTimer = null;
 let lastFocusedElement = null;
+let activeModal = null;
 
 const $ = (selector) => document.querySelector(selector);
 const els = {
@@ -21,13 +22,15 @@ const els = {
   entryList: $("#entryList"), entryCount: $("#entryCount"),
   sidebar: $("#sidebar"), sidebarToggle: $("#sidebarToggle"),
   addFolder: $("#addFolder"), folderList: $("#folderList"), folderModal: $("#folderModal"), folderForm: $("#folderForm"),
+  folderInfo: $("#folderInfo"), folderInfoModal: $("#folderInfoModal"), closeFolderInfo: $("#closeFolderInfo"),
+  closeFolderInfoFooter: $("#closeFolderInfoFooter"),
   folderName: $("#folderName"), folderNote: $("#folderNote"), cancelFolder: $("#cancelFolder"), cancelFolderFooter: $("#cancelFolderFooter"),
   budgetForm: $("#budgetForm"), budgetCategory: $("#budgetCategory"), budgetAmount: $("#budgetAmount"), budgetList: $("#budgetList"),
   expenseForm: $("#expenseForm"), expenseName: $("#expenseName"), expenseCategory: $("#expenseCategory"),
   expenseAmount: $("#expenseAmount"), expenseDate: $("#expenseDate"), expenseNote: $("#expenseNote"), expenseList: $("#expenseList"),
   budgetTotalText: $("#budgetTotalText"), expenseTotalText: $("#expenseTotalText"), budgetSummary: $("#budgetSummary"),
   categoryBreakdown: $("#categoryBreakdown"), importData: $("#importData"), importFile: $("#importFile"),
-  exportData: $("#exportData"), quickNotes: $("#quickNotes"),
+  exportData: $("#exportData"), quickNotes: $("#quickNotes"), currentFolderBadge: $("#currentFolderBadge"),
 };
 
 init();
@@ -35,20 +38,33 @@ init();
 function init() {
   els.entryDate.value = toISO(new Date());
   els.expenseDate.value = toISO(new Date());
-  syncSettingsControls();
-  els.quickNotes.value = state.notes || "";
+  syncFolderControls();
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_KEY) === "true");
   bindEvents();
   render();
 }
 
-function syncSettingsControls() {
-  els.currency.value = state.settings.currency;
-  els.hourlyRate.value = state.settings.hourlyRate;
-  els.weekendBonus.value = state.settings.weekendBonus;
-  els.payType.value = state.settings.payType;
-  els.monthDay.value = state.settings.monthDay;
-  els.weekDay.value = state.settings.weekDay;
+function activeFolder() {
+  let folder = state.folders.find((item) => item.id === state.activeFolderId);
+  if (!folder) {
+    folder = state.folders[0];
+    if (folder) state.activeFolderId = folder.id;
+  }
+  return folder;
+}
+
+function syncFolderControls() {
+  const folder = activeFolder();
+  if (!folder) return;
+
+  els.currency.value = folder.settings.currency;
+  els.hourlyRate.value = folder.settings.hourlyRate;
+  els.weekendBonus.value = folder.settings.weekendBonus;
+  els.payType.value = folder.settings.payType;
+  els.monthDay.value = folder.settings.monthDay;
+  els.weekDay.value = folder.settings.weekDay;
+  els.quickNotes.value = folder.notes || "";
+  els.currentFolderBadge.textContent = folder.name;
 }
 
 function loadState() {
@@ -57,70 +73,121 @@ function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!saved) return base;
-    return normalizeState({ ...base, ...saved, settings: { ...base.settings, ...saved.settings } });
+    return normalizeState(saved);
   } catch {
     return base;
   }
 }
 
-function baseState() {
+function baseSettings(settings = {}) {
   return {
-    settings: { currency: "JPY", hourlyRate: 1140, weekendBonus: 100, payType: "monthly", monthDay: 15, weekDay: 5 },
-    entries: [],
-    folders: [
-      { id: randomId(), name: "Last salary", note: "Compare older salary with today." },
-      { id: randomId(), name: "Work memories", note: "Kitchen job, washing dishes, busy shifts." }
-    ],
-    budgets: [],
-    expenses: [],
-    notes: ""
+    currency: ["JPY", "USD"].includes(settings.currency) ? settings.currency : "JPY",
+    hourlyRate: Math.max(0, Number(settings.hourlyRate) || 1140),
+    weekendBonus: Math.max(0, Number(settings.weekendBonus) || 100),
+    payType: ["monthly", "weekly"].includes(settings.payType) ? settings.payType : "monthly",
+    monthDay: clamp(Number(settings.monthDay) || 15, 1, 31),
+    weekDay: clamp(Number(settings.weekDay) || 5, 0, 6)
+  };
+}
+
+function createWorkspaceFolder(folder = {}) {
+  return {
+    id: folder.id || randomId(),
+    name: folder.name || "Folder",
+    note: folder.note || "",
+    settings: baseSettings(folder.settings),
+    entries: normalizeEntries(folder.entries),
+    budgets: normalizeBudgets(folder.budgets),
+    expenses: normalizeExpenses(folder.expenses),
+    notes: folder.notes || ""
+  };
+}
+
+function baseState() {
+  const first = createWorkspaceFolder({ name: "Main salary", note: "Your current salary plan." });
+  const repeat = createWorkspaceFolder({ name: "Repeat", note: "A separate folder for recurring salary planning." });
+  return {
+    folders: [first, repeat],
+    activeFolderId: first.id
   };
 }
 
 function normalizeState(data) {
   const base = baseState();
-  const merged = {
-    ...base,
-    ...data,
-    settings: { ...base.settings, ...(data.settings || {}) }
-  };
+  let folders = [];
+
+  if (Array.isArray(data.folders) && data.folders.length) {
+    folders = data.folders.map((folder) => normalizeWorkspaceFolder(folder, data));
+  } else {
+    const migrated = createWorkspaceFolder({
+      name: "Main salary",
+      note: "Migrated current salary data.",
+      settings: data.settings,
+      entries: data.entries,
+      budgets: data.budgets,
+      expenses: data.expenses,
+      notes: data.notes
+    });
+    folders = [migrated];
+  }
+
+  if (!folders.length) {
+    folders = base.folders;
+  }
+
+  const activeFolderId = folders.some((folder) => folder.id === data.activeFolderId)
+    ? data.activeFolderId
+    : folders[0].id;
+
+  return { folders, activeFolderId };
+}
+
+function normalizeWorkspaceFolder(folder, rootData) {
+  const hasWorkspaceFields = folder.settings || folder.expenses || folder.budgets || folder.entries || folder.notes;
+  if (hasWorkspaceFields) {
+    return createWorkspaceFolder(folder);
+  }
+
+  return createWorkspaceFolder({
+    id: folder.id,
+    name: folder.name,
+    note: folder.note,
+    settings: rootData.settings,
+    entries: folder.entries || folder.expenseItems ? folder.entries : [],
+    budgets: folder.budgets || [],
+    expenses: folder.expenseItems || [],
+    notes: folder.folderNotes || ""
+  });
+}
+
+function normalizeEntries(entries) {
   const today = toISO(new Date());
-  return {
-    ...merged,
-    settings: {
-      currency: ["JPY", "USD"].includes(merged.settings.currency) ? merged.settings.currency : base.settings.currency,
-      hourlyRate: Math.max(0, Number(merged.settings.hourlyRate) || base.settings.hourlyRate),
-      weekendBonus: Math.max(0, Number(merged.settings.weekendBonus) || 0),
-      payType: ["monthly", "weekly"].includes(merged.settings.payType) ? merged.settings.payType : base.settings.payType,
-      monthDay: clamp(Number(merged.settings.monthDay) || base.settings.monthDay, 1, 31),
-      weekDay: clamp(Number(merged.settings.weekDay) || base.settings.weekDay, 0, 6)
-    },
-    entries: asArray(merged.entries).map((item) => ({
-      id: item.id || randomId(),
-      date: normalizeDate(item.date, today),
-      hours: Math.max(0, Number(item.hours) || 0),
-      note: item.note || ""
-    })).filter((item) => item.date && item.hours > 0),
-    folders: asArray(merged.folders).map((item) => ({
-      id: item.id || randomId(),
-      name: item.name || "Folder",
-      note: item.note || ""
-    })),
-    budgets: asArray(merged.budgets).map((item) => ({
-      id: item.id || randomId(),
-      category: normalizeCategory(item.category || item.name),
-      amount: Number(item.amount) || 0
-    })).filter((item) => item.amount > 0),
-    expenses: asArray(merged.expenses).map((item) => ({
-      id: item.id || randomId(),
-      name: item.name || "Expense",
-      category: normalizeCategory(item.category),
-      amount: Number(item.amount) || 0,
-      date: normalizeDate(item.date, today),
-      note: item.note || ""
-    })).filter((item) => item.amount > 0),
-    notes: merged.notes || ""
-  };
+  return asArray(entries).map((item) => ({
+    id: item.id || randomId(),
+    date: normalizeDate(item.date, today),
+    hours: Math.max(0, Number(item.hours) || 0),
+    note: item.note || ""
+  })).filter((item) => item.date && item.hours > 0);
+}
+
+function normalizeBudgets(budgets) {
+  return asArray(budgets).map((item) => ({
+    id: item.id || randomId(),
+    category: normalizeCategory(item.category || item.name),
+    amount: Math.max(0, Number(item.amount) || 0)
+  })).filter((item) => item.amount > 0);
+}
+
+function normalizeExpenses(expenses) {
+  const today = toISO(new Date());
+  return asArray(expenses).map((item) => ({
+    id: item.id || randomId(),
+    name: item.name || "Expense",
+    category: normalizeCategory(item.category),
+    amount: Math.max(0, Number(item.amount) || 0),
+    date: normalizeDate(item.date, today),
+    note: item.note || ""
+  })).filter((item) => item.amount > 0);
 }
 
 function saveState() {
@@ -130,12 +197,13 @@ function saveState() {
 function bindEvents() {
   [els.currency, els.hourlyRate, els.weekendBonus, els.payType, els.monthDay, els.weekDay].forEach((field) => {
     field.addEventListener("input", () => {
-      state.settings.currency = els.currency.value;
-      state.settings.hourlyRate = Number(els.hourlyRate.value) || 0;
-      state.settings.weekendBonus = Number(els.weekendBonus.value) || 0;
-      state.settings.payType = els.payType.value;
-      state.settings.monthDay = clamp(Number(els.monthDay.value) || 1, 1, 31);
-      state.settings.weekDay = Number(els.weekDay.value);
+      const folder = activeFolder();
+      folder.settings.currency = els.currency.value;
+      folder.settings.hourlyRate = Number(els.hourlyRate.value) || 0;
+      folder.settings.weekendBonus = Number(els.weekendBonus.value) || 0;
+      folder.settings.payType = els.payType.value;
+      folder.settings.monthDay = clamp(Number(els.monthDay.value) || 1, 1, 31);
+      folder.settings.weekDay = Number(els.weekDay.value);
       saveState();
       render();
     });
@@ -143,17 +211,18 @@ function bindEvents() {
 
   els.entryForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    const folder = activeFolder();
     const date = els.entryDate.value;
     const hours = Number(els.entryHours.value);
     if (!date || hours <= 0) return;
 
-    const existing = state.entries.find((entry) => entry.date === date);
+    const existing = folder.entries.find((entry) => entry.date === date);
     const status = existing ? "Entry updated" : "Entry saved";
     if (existing) {
       existing.hours = hours;
       existing.note = els.entryNote.value.trim();
     } else {
-      state.entries.push({ id: randomId(), date, hours, note: els.entryNote.value.trim() });
+      folder.entries.push({ id: randomId(), date, hours, note: els.entryNote.value.trim() });
     }
 
     els.entryHours.value = "";
@@ -178,19 +247,20 @@ function bindEvents() {
   });
 
   els.addFolder.addEventListener("click", openFolderModal);
+  els.folderInfo.addEventListener("click", openFolderInfoModal);
   els.cancelFolder.addEventListener("click", closeFolderModal);
   els.cancelFolderFooter.addEventListener("click", closeFolderModal);
   els.folderModal.addEventListener("click", (event) => {
     if (event.target === els.folderModal) closeFolderModal();
   });
+  els.folderInfoModal.addEventListener("click", (event) => {
+    if (event.target === els.folderInfoModal) closeFolderInfoModal();
+  });
+  els.closeFolderInfo.addEventListener("click", closeFolderInfoModal);
+  els.closeFolderInfoFooter.addEventListener("click", closeFolderInfoModal);
   els.folderForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const name = els.folderName.value.trim();
-    if (!name) return;
-    state.folders.push({ id: randomId(), name, note: els.folderNote.value.trim() });
-    saveState();
-    renderFolders();
-    closeFolderModal();
+    createFolderFromModal();
   });
 
   els.budgetForm.addEventListener("submit", (event) => {
@@ -209,18 +279,21 @@ function bindEvents() {
   });
 
   els.quickNotes.addEventListener("input", () => {
-    state.notes = els.quickNotes.value;
+    const folder = activeFolder();
+    folder.notes = els.quickNotes.value;
     saveState();
   });
 
   els.importData.addEventListener("click", () => els.importFile.click());
   els.importFile.addEventListener("change", importJSON);
   els.exportData.addEventListener("click", exportJSON);
+  document.addEventListener("keydown", handleModalKeydown);
 }
 
 function render() {
-  els.monthDayWrap.classList.toggle("hidden", state.settings.payType !== "monthly");
-  els.weekDayWrap.classList.toggle("hidden", state.settings.payType !== "weekly");
+  syncFolderControls();
+  els.monthDayWrap.classList.toggle("hidden", activeFolder().settings.payType !== "monthly");
+  els.weekDayWrap.classList.toggle("hidden", activeFolder().settings.payType !== "weekly");
   renderSummary();
   renderCalendar();
   renderEntries();
@@ -242,41 +315,60 @@ function openFolderModal() {
   els.folderName.value = "";
   els.folderNote.value = "";
   els.folderModal.classList.remove("hidden");
-  document.addEventListener("keydown", trapFolderModalFocus);
+  activeModal = "folder";
   els.folderName.focus();
+}
+
+function openFolderInfoModal() {
+  lastFocusedElement = document.activeElement;
+  els.folderInfoModal.classList.remove("hidden");
+  activeModal = "folder-info";
+  els.closeFolderInfo.focus();
 }
 
 function closeFolderModal() {
   els.folderModal.classList.add("hidden");
   els.folderForm.reset();
-  document.removeEventListener("keydown", trapFolderModalFocus);
+  if (activeModal === "folder") activeModal = null;
   (lastFocusedElement || els.addFolder).focus();
   lastFocusedElement = null;
 }
 
-function trapFolderModalFocus(event) {
-  if (event.key === "Escape") {
-    closeFolderModal();
-    return;
-  }
+function closeFolderInfoModal() {
+  els.folderInfoModal.classList.add("hidden");
+  if (activeModal === "folder-info") activeModal = null;
+  (lastFocusedElement || els.folderInfo).focus();
+  lastFocusedElement = null;
+}
 
-  if (event.key !== "Tab") return;
-  const focusable = [...els.folderModal.querySelectorAll("button, input, textarea, select, a[href], [tabindex]:not([tabindex='-1'])")]
-    .filter((element) => !element.disabled && element.offsetParent !== null);
-  if (!focusable.length) return;
+function handleModalKeydown(event) {
+  if (event.key !== "Escape") return;
+  if (activeModal === "folder") closeFolderModal();
+  if (activeModal === "folder-info") closeFolderInfoModal();
+}
 
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (!els.folderModal.contains(document.activeElement)) {
-    event.preventDefault();
-    first.focus();
-  } else if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
+function createFolderFromModal() {
+  const name = els.folderName.value.trim();
+  if (!name) return;
+
+  const folder = createWorkspaceFolder({
+    name,
+    note: els.folderNote.value.trim()
+  });
+
+  state.folders.push(folder);
+  state.activeFolderId = folder.id;
+  saveState();
+  closeFolderModal();
+  render();
+}
+
+function switchFolder(folderId) {
+  if (state.activeFolderId === folderId) return;
+  state.activeFolderId = folderId;
+  calendarDate = firstOfMonth(new Date());
+  saveState();
+  render();
 }
 
 function showEntryStatus(message) {
@@ -288,17 +380,18 @@ function showEntryStatus(message) {
 }
 
 function currentPeriod(today = new Date()) {
+  const folder = activeFolder();
   const now = startOfDay(today);
 
-  if (state.settings.payType === "weekly") {
-    const payday = state.settings.weekDay;
+  if (folder.settings.payType === "weekly") {
+    const payday = folder.settings.weekDay;
     const lastPayday = addDays(now, -((now.getDay() - payday + 7) % 7));
     const end = now > lastPayday ? addDays(lastPayday, 7) : lastPayday;
     const start = addDays(end, -6);
     return { start, end };
   }
 
-  const payday = clamp(state.settings.monthDay, 1, 31);
+  const payday = clamp(folder.settings.monthDay, 1, 31);
   const thisPayday = safeDate(now.getFullYear(), now.getMonth(), payday);
   const end = now <= thisPayday ? thisPayday : safeDate(now.getFullYear(), now.getMonth() + 1, payday);
   const previousEnd = safeDate(end.getFullYear(), end.getMonth() - 1, payday);
@@ -306,16 +399,16 @@ function currentPeriod(today = new Date()) {
   return { start, end };
 }
 
-function includedEntries() {
+function includedEntries(folder = activeFolder()) {
   const { start, end } = currentPeriod();
-  return state.entries
+  return folder.entries
     .filter((entry) => isInPeriod(entry.date, start, end))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function periodExpenses() {
+function periodExpenses(folder = activeFolder()) {
   const { start, end } = currentPeriod();
-  return state.expenses
+  return folder.expenses
     .filter((expense) => isInPeriod(expense.date, start, end))
     .sort((a, b) => b.date.localeCompare(a.date));
 }
@@ -344,12 +437,13 @@ function renderSummary() {
 }
 
 function renderCalendar() {
+  const folder = activeFolder();
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
   const first = new Date(year, month, 1);
   const gridStart = addDays(first, -first.getDay());
   const { start, end } = currentPeriod();
-  const byDate = new Map(state.entries.map((entry) => [entry.date, entry]));
+  const byDate = new Map(folder.entries.map((entry) => [entry.date, entry]));
 
   els.calendarTitle.textContent = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   els.calendar.innerHTML = "";
@@ -379,13 +473,13 @@ function renderCalendar() {
 
 function renderEntries() {
   const entries = includedEntries();
-  els.entryList.innerHTML = entries.length ? "" : `<div class="empty">No work entries in this salary period yet.</div>`;
+  els.entryList.innerHTML = entries.length ? "" : `<div class="empty">No work entries in this folder for the current salary period yet.</div>`;
   entries.forEach((entry) => {
     const item = document.createElement("article");
     item.className = "item";
     item.innerHTML = `
-      <div class="item-top"><strong>${longDate(fromISO(entry.date))}</strong><button class="delete" type="button" aria-label="Delete work entry">×</button></div>
-      <div class="meta">${prettyNumber(entry.hours)} hours × ${money(rateForDate(entry.date))} - ${money(entryPay(entry))}</div>
+      <div class="item-top"><strong>${longDate(fromISO(entry.date))}</strong><button class="delete" type="button" aria-label="Delete work entry">x</button></div>
+      <div class="meta">${prettyNumber(entry.hours)} hours x ${money(rateForDate(entry.date))} - ${money(entryPay(entry))}</div>
       <div>${escapeHTML(entry.note || "No note added")}</div>
     `;
     item.querySelector("button").addEventListener("click", (event) => confirmDelete(event.currentTarget, "entries", entry.id));
@@ -394,15 +488,36 @@ function renderEntries() {
 }
 
 function renderFolders() {
-  els.folderList.innerHTML = "";
+  const currentId = state.activeFolderId;
+  els.folderList.innerHTML = state.folders.length ? "" : `<div class="empty">Create a folder to start a salary workspace.</div>`;
+
   state.folders.forEach((folder) => {
+    const totals = folderTotals(folder);
     const item = document.createElement("article");
-    item.className = "item";
+    item.className = `item folder-card${folder.id === currentId ? " active-folder" : ""}`;
     item.innerHTML = `
-      <div class="item-top"><strong>${escapeHTML(folder.name)}</strong><button class="delete" type="button" aria-label="Delete note folder">×</button></div>
-      <div class="meta">${escapeHTML(folder.note || "No note")}</div>
+      <div class="item-top">
+        <button class="folder-link" type="button">${escapeHTML(folder.name)}</button>
+        <button class="delete" type="button" aria-label="Delete folder">x</button>
+      </div>
+      <div class="meta">${escapeHTML(folder.note || "Separate salary workspace")}</div>
+      <div class="folder-stats">
+        <span><strong>${money(totals.salary)}</strong> salary</span>
+        <span><strong>${prettyNumber(totals.hours)}h</strong> hours</span>
+        <span><strong>${money(totals.expenses)}</strong> expenses</span>
+      </div>
+      <div class="folder-chips">
+        <span class="chip">${folder.entries.length} ${folder.entries.length === 1 ? "work entry" : "work entries"}</span>
+        <span class="chip">${folder.budgets.length} ${folder.budgets.length === 1 ? "budget" : "budgets"}</span>
+        <span class="chip">${folder.expenses.length} ${folder.expenses.length === 1 ? "expense" : "expenses"}</span>
+      </div>
+      <div class="folder-actions">
+        <button class="open-folder-button" type="button">${folder.id === currentId ? "Opened" : "Open folder"}</button>
+      </div>
     `;
-    item.querySelector("button").addEventListener("click", (event) => confirmDelete(event.currentTarget, "folders", folder.id));
+    item.querySelector(".folder-link").addEventListener("click", () => switchFolder(folder.id));
+    item.querySelector(".open-folder-button").addEventListener("click", () => switchFolder(folder.id));
+    item.querySelector(".delete").addEventListener("click", (event) => confirmDelete(event.currentTarget, "folders", folder.id));
     els.folderList.append(item);
   });
 }
@@ -413,17 +528,18 @@ function renderMoneyLists() {
 }
 
 function renderBudgetList() {
-  const expensesByCategory = categoryTotals(periodExpenses());
-  els.budgetList.innerHTML = state.budgets.length ? "" : `<div class="empty">No category limits yet.</div>`;
+  const folder = activeFolder();
+  const expensesByCategory = categoryTotals(periodExpenses(folder));
+  els.budgetList.innerHTML = folder.budgets.length ? "" : `<div class="empty">No category limits in this folder yet.</div>`;
 
-  state.budgets.forEach((budget) => {
+  folder.budgets.forEach((budget) => {
     const spent = expensesByCategory.get(budget.category) || 0;
     const percent = budget.amount ? Math.min((spent / budget.amount) * 100, 100) : 0;
     const remaining = budget.amount - spent;
     const item = document.createElement("article");
     item.className = "item";
     item.innerHTML = `
-      <div class="item-top"><strong>${escapeHTML(budget.category)}</strong><button class="delete" type="button" aria-label="Delete budget limit">×</button></div>
+      <div class="item-top"><strong>${escapeHTML(budget.category)}</strong><button class="delete" type="button" aria-label="Delete budget limit">x</button></div>
       <div class="meta">${money(spent)} spent of ${money(budget.amount)}</div>
       <div class="progress"><span style="width: ${percent}%"></span></div>
       <div class="${remaining >= 0 ? "fit" : "tight"}">${remaining >= 0 ? `${money(remaining)} left` : `${money(Math.abs(remaining))} over limit`}</div>
@@ -435,13 +551,13 @@ function renderBudgetList() {
 
 function renderExpenseList() {
   const expenses = periodExpenses();
-  els.expenseList.innerHTML = expenses.length ? "" : `<div class="empty">No expenses in this salary period yet.</div>`;
+  els.expenseList.innerHTML = expenses.length ? "" : `<div class="empty">No expenses in this folder for the current salary period yet.</div>`;
 
   expenses.forEach((expense) => {
     const item = document.createElement("article");
     item.className = "item";
     item.innerHTML = `
-      <div class="item-top"><strong>${escapeHTML(expense.name)}</strong><button class="delete" type="button" aria-label="Delete expense">×</button></div>
+      <div class="item-top"><strong>${escapeHTML(expense.name)}</strong><button class="delete" type="button" aria-label="Delete expense">x</button></div>
       <div class="meta">${money(expense.amount)} - ${escapeHTML(expense.category)} - ${longDate(fromISO(expense.date))}</div>
       <div>${escapeHTML(expense.note || "No note added")}</div>
     `;
@@ -454,7 +570,7 @@ function renderCategoryBreakdown() {
   const expenses = periodExpenses();
   const totals = categoryTotals(expenses);
   const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  els.categoryBreakdown.innerHTML = totalSpent ? "" : `<div class="empty">Add categorized expenses to see your spending pattern.</div>`;
+  els.categoryBreakdown.innerHTML = totalSpent ? "" : `<div class="empty">Add categorized expenses in this folder to see your spending pattern.</div>`;
 
   [...totals.entries()].sort((a, b) => b[1] - a[1]).forEach(([category, amount]) => {
     const percent = totalSpent ? (amount / totalSpent) * 100 : 0;
@@ -469,22 +585,24 @@ function renderCategoryBreakdown() {
 }
 
 function addBudget(category, amount) {
+  const folder = activeFolder();
   const parsed = Number(amount);
   if (!category || parsed <= 0) return;
-  const existing = state.budgets.find((budget) => budget.category === category);
+  const existing = folder.budgets.find((budget) => budget.category === category);
   if (existing) {
     existing.amount = parsed;
   } else {
-    state.budgets.push({ id: randomId(), category, amount: parsed });
+    folder.budgets.push({ id: randomId(), category, amount: parsed });
   }
   saveState();
   render();
 }
 
 function addExpense() {
+  const folder = activeFolder();
   const amount = Number(els.expenseAmount.value);
   if (!els.expenseName.value.trim() || amount <= 0 || !els.expenseDate.value) return;
-  state.expenses.push({
+  folder.expenses.push({
     id: randomId(),
     name: els.expenseName.value.trim(),
     category: normalizeCategory(els.expenseCategory.value),
@@ -505,7 +623,7 @@ function confirmDelete(button, key, id) {
   }
 
   document.querySelectorAll(".delete.confirming").forEach((item) => {
-    item.textContent = "×";
+    item.textContent = "x";
     item.classList.remove("confirming");
   });
 
@@ -517,25 +635,39 @@ function confirmDelete(button, key, id) {
     if (pendingDelete !== token) return;
     pendingDelete = null;
     if (!button.isConnected) return;
-    button.textContent = "×";
+    button.textContent = "x";
     button.classList.remove("confirming");
   }, CONFIRM_RESET_MS);
 }
 
 function removeItem(key, id) {
-  state[key] = state[key].filter((item) => item.id !== id);
+  const folder = activeFolder();
+
+  if (key === "folders") {
+    state.folders = state.folders.filter((item) => item.id !== id);
+    if (!state.folders.length) {
+      const fallback = createWorkspaceFolder({ name: "Main salary", note: "Fresh salary workspace." });
+      state.folders.push(fallback);
+    }
+    if (state.activeFolderId === id) {
+      state.activeFolderId = state.folders[0].id;
+    }
+  } else {
+    folder[key] = folder[key].filter((item) => item.id !== id);
+  }
+
   saveState();
   render();
 }
 
-function moneyTotals() {
-  const entries = includedEntries();
-  const expensesList = periodExpenses();
+function moneyTotals(folder = activeFolder()) {
+  const entries = includedEntries(folder);
+  const expensesList = periodExpenses(folder);
   const { start, end } = currentPeriod();
   const hours = entries.reduce((sum, entry) => sum + entry.hours, 0);
   const salary = entries.reduce((sum, entry) => sum + entryPay(entry), 0);
   const expenses = expensesList.reduce((sum, item) => sum + item.amount, 0);
-  const budgets = state.budgets.reduce((sum, item) => sum + item.amount, 0);
+  const budgets = folder.budgets.reduce((sum, item) => sum + item.amount, 0);
   const afterExpenses = salary - expenses;
   const afterPlans = salary - budgets;
   const daysElapsed = Math.max(1, daysBetween(start, minDate(startOfDay(new Date()), end)) + 1);
@@ -553,12 +685,19 @@ function moneyTotals() {
   };
 }
 
-function entryPay(entry) {
-  return entry.hours * rateForDate(entry.date);
+function folderTotals(folder) {
+  const hours = folder.entries.reduce((sum, entry) => sum + entry.hours, 0);
+  const salary = folder.entries.reduce((sum, entry) => sum + entry.hours * rateForDate(entry.date, folder), 0);
+  const expenses = folder.expenses.reduce((sum, item) => sum + item.amount, 0);
+  return { hours, salary, expenses };
 }
 
-function rateForDate(isoDate) {
-  return state.settings.hourlyRate + (isWeekend(isoDate) ? state.settings.weekendBonus : 0);
+function entryPay(entry, folder = activeFolder()) {
+  return entry.hours * rateForDate(entry.date, folder);
+}
+
+function rateForDate(isoDate, folder = activeFolder()) {
+  return folder.settings.hourlyRate + (isWeekend(isoDate) ? folder.settings.weekendBonus : 0);
 }
 
 function isWeekend(isoDate) {
@@ -594,8 +733,7 @@ function importJSON(event) {
       const parsed = JSON.parse(String(reader.result || "{}"));
       replaceState(normalizeState(parsed));
       saveState();
-      syncSettingsControls();
-      els.quickNotes.value = state.notes || "";
+      calendarDate = firstOfMonth(new Date());
       render();
       showEntryStatus("Import complete");
     } catch {
@@ -619,8 +757,8 @@ function replaceState(nextState) {
 function money(value) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
-    currency: state.settings.currency,
-    maximumFractionDigits: state.settings.currency === "JPY" ? 0 : 2
+    currency: activeFolder().settings.currency,
+    maximumFractionDigits: activeFolder().settings.currency === "JPY" ? 0 : 2
   }).format(value);
 }
 
