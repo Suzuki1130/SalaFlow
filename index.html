@@ -1,0 +1,257 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#090d0c">
+  <title>SalaFlow | Salary Tracker</title>
+  <link rel="icon" type="image/png" href="SalaFlow.png">
+  <link rel="apple-touch-icon" href="SalaFlow.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Hide sidebar" title="Hide sidebar">
+      <span>&lt;</span>
+    </button>
+    <div class="brand">
+      <img class="logo" src="SalaFlow.png" alt="SalaFlow logo">
+    </div>
+
+    <nav class="nav">
+      <a href="#dashboard">Dashboard</a>
+      <a href="#entries">Work entries</a>
+      <a href="#notesPanel">Notes</a>
+      <a href="#budget">Budget</a>
+      <a href="#expenses">Expenses</a>
+      <a href="#insights">Insights</a>
+    </nav>
+
+    <section class="side-card" id="noteFolders">
+      <div class="section-title">
+        <h2>Folders</h2>
+        <button id="addFolder" type="button" title="Add folder">+</button>
+      </div>
+      <div id="folderList" class="stack"></div>
+    </section>
+  </aside>
+
+  <main class="main" id="dashboard">
+    <header class="hero">
+      <p>Private browser-saved tracker</p>
+      <h1>Plan your next salary before payday arrives.</h1>
+    </header>
+
+    <section class="stats">
+      <article>
+        <span>Salary period</span>
+        <strong id="periodText">-</strong>
+      </article>
+      <article>
+        <span>Expected salary</span>
+        <strong id="salaryText">0</strong>
+      </article>
+      <article>
+        <span>Hours included</span>
+        <strong id="hoursText">0h</strong>
+      </article>
+      <article>
+        <span>After expenses</span>
+        <strong id="remainingText">0</strong>
+      </article>
+      <article>
+        <span>After budget plans</span>
+        <strong id="plannedRemainingText">0</strong>
+      </article>
+    </section>
+
+    <section class="insights" id="insights">
+      <article>
+        <span>Savings rate</span>
+        <strong id="savingsRateText">0%</strong>
+      </article>
+      <article>
+        <span>Daily spend avg</span>
+        <strong id="dailyAverageText">0</strong>
+      </article>
+      <article>
+        <span>Weekly spend avg</span>
+        <strong id="weeklyAverageText">0</strong>
+      </article>
+      <article>
+        <span>Forecast at payday</span>
+        <strong id="forecastText">0</strong>
+      </article>
+    </section>
+
+    <section class="grid two">
+      <article class="panel">
+        <div class="section-title">
+          <h2>Pay settings</h2>
+        </div>
+        <div class="form-grid">
+          <label>Currency
+            <select id="currency">
+              <option value="JPY">JPY</option>
+              <option value="USD">USD</option>
+            </select>
+          </label>
+          <label>Money per hour
+            <input id="hourlyRate" type="number" min="0" step="1">
+          </label>
+          <label>Weekend bonus per hour
+            <input id="weekendBonus" type="number" min="0" step="1">
+          </label>
+          <label>Salary received
+            <select id="payType">
+              <option value="monthly">Per month</option>
+              <option value="weekly">Per week</option>
+            </select>
+          </label>
+          <label id="monthDayWrap">Day of month
+            <input id="monthDay" type="number" min="1" max="31">
+          </label>
+          <label id="weekDayWrap" class="hidden">Day of week
+            <select id="weekDay">
+              <option value="1">Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
+              <option value="6">Saturday</option>
+              <option value="0">Sunday</option>
+            </select>
+          </label>
+        </div>
+      </article>
+
+      <article class="panel" id="entries">
+        <div class="section-title">
+          <h2>Add work</h2>
+          <span id="entryStatus" aria-live="polite"></span>
+        </div>
+        <form id="entryForm" class="form-grid">
+          <label>Date
+            <input id="entryDate" type="date" required>
+          </label>
+          <label>Hours
+            <input id="entryHours" type="number" min="0" step="0.25" placeholder="2.5" required>
+          </label>
+          <label class="wide">Work note
+            <input id="entryNote" type="text" maxlength="90" placeholder="Kitchen job, washing dishes, stocking shelves...">
+          </label>
+          <button class="primary wide" type="submit">Save work entry</button>
+        </form>
+      </article>
+    </section>
+
+    <section class="grid calendar-area">
+      <article class="panel calendar-panel">
+        <div class="calendar-head">
+          <button id="prevMonth" type="button" title="Previous month">&lt;</button>
+          <h2 id="calendarTitle">Calendar</h2>
+          <button id="nextMonth" type="button" title="Next month">&gt;</button>
+        </div>
+        <div class="weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+        <div id="calendar" class="calendar"></div>
+      </article>
+
+      <article class="panel">
+        <div class="section-title">
+          <h2>This salary</h2>
+          <span id="entryCount">0 entries</span>
+        </div>
+        <div id="entryList" class="stack"></div>
+      </article>
+    </section>
+
+    <section class="grid two money-row" id="money">
+      <article class="panel" id="budget">
+        <div class="section-title">
+          <h2>Category budgets</h2>
+          <span id="budgetTotalText">0 planned</span>
+        </div>
+        <div class="money-summary" id="budgetSummary">Add plans to see what will be left.</div>
+        <form id="budgetForm" class="money-form">
+          <select id="budgetCategory" required>
+            <option value="Food">Food</option>
+            <option value="Transport">Transport</option>
+            <option value="Bills">Bills</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Savings">Savings</option>
+            <option value="Other">Other</option>
+          </select>
+          <input id="budgetAmount" type="number" min="0" step="1" placeholder="Limit" required>
+          <button type="submit">Add</button>
+        </form>
+        <div id="budgetList" class="stack"></div>
+      </article>
+
+      <article class="panel" id="expenses">
+        <div class="section-title">
+          <h2>Expenses</h2>
+          <span id="expenseTotalText">0 spent</span>
+        </div>
+        <form id="expenseForm" class="money-form">
+          <input id="expenseName" type="text" placeholder="Food, train, rent..." required>
+          <select id="expenseCategory" required>
+            <option value="Food">Food</option>
+            <option value="Transport">Transport</option>
+            <option value="Bills">Bills</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Savings">Savings</option>
+            <option value="Other">Other</option>
+          </select>
+          <input id="expenseAmount" type="number" min="0" step="1" placeholder="Amount" required>
+          <input id="expenseDate" type="date" required>
+          <input id="expenseNote" type="text" maxlength="80" placeholder="Note">
+          <button type="submit">Add</button>
+        </form>
+        <div id="expenseList" class="stack"></div>
+      </article>
+    </section>
+
+    <section class="panel analytics-panel">
+      <div class="section-title">
+        <h2>Spending pattern</h2>
+        <div class="button-row">
+          <button id="importData" type="button">Import JSON</button>
+          <button id="exportData" type="button">Export JSON</button>
+        </div>
+        <input class="hidden" id="importFile" type="file" accept="application/json,.json">
+      </div>
+      <div id="categoryBreakdown" class="breakdown"></div>
+    </section>
+
+    <section class="panel notes-panel" id="notesPanel">
+      <div class="section-title">
+        <h2>Notes</h2>
+        <span>Saved in your browser</span>
+      </div>
+      <textarea id="quickNotes" maxlength="800" placeholder="Write salary notes, reminders, or what you want to remember before payday."></textarea>
+    </section>
+  </main>
+
+  <div class="modal-backdrop hidden" id="folderModal" role="dialog" aria-modal="true" aria-labelledby="folderModalTitle">
+    <form class="modal" id="folderForm">
+      <div class="section-title">
+        <h2 id="folderModalTitle">Add note folder</h2>
+        <button class="ghost-button" id="cancelFolder" type="button" aria-label="Close folder dialog">×</button>
+      </div>
+      <label>Folder name
+        <input id="folderName" type="text" maxlength="40" placeholder="Last salary, Work memories..." required>
+      </label>
+      <label>Folder note
+        <textarea id="folderNote" maxlength="160" placeholder="What should this folder remember?"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button class="ghost-button" type="button" id="cancelFolderFooter">Cancel</button>
+        <button class="primary" type="submit">Save folder</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
