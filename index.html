@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#090d0c">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f5fbf8">
   <title>SalaFlow | Salary Tracker</title>
   <link rel="icon" type="image/png" href="SalaFlow.png">
   <link rel="apple-touch-icon" href="SalaFlow.png">
@@ -17,6 +17,10 @@
     </button>
     <div class="brand">
       <img class="logo" src="SalaFlow.png" alt="SalaFlow logo">
+      <div>
+        <strong>SalaFlow</strong>
+        <span>Smart Salary Tracker</span>
+      </div>
     </div>
 
     <nav class="nav">
@@ -41,20 +45,36 @@
   </aside>
 
   <main class="main" id="dashboard">
-    <header class="hero">
-      <p>Private browser-saved tracker</p>
+    <header class="topbar">
+      <div class="top-brand">
+        <img src="SalaFlow.png" alt="SalaFlow logo">
+        <div>
+          <strong>SalaFlow</strong>
+          <span>Smart Salary Tracker</span>
+        </div>
+      </div>
       <div class="current-folder-badge" id="currentFolderBadge">Main salary</div>
-      <h1>Plan your next salary before payday arrives.</h1>
+    </header>
+
+    <header class="hero">
+      <div>
+        <p>Private browser-saved tracker</p>
+        <h1>Track your pay, hours, and spending with less friction.</h1>
+      </div>
     </header>
 
     <section class="stats">
+      <article class="total-card">
+        <span>Total earnings</span>
+        <strong id="salaryText">0</strong>
+      </article>
       <article>
         <span>Salary period</span>
         <strong id="periodText">-</strong>
       </article>
       <article>
-        <span>Expected salary</span>
-        <strong id="salaryText">0</strong>
+        <span>This month</span>
+        <strong id="monthSalaryText">0</strong>
       </article>
       <article>
         <span>Hours included</span>
@@ -102,10 +122,10 @@
             </select>
           </label>
           <label>Money per hour
-            <input id="hourlyRate" type="number" min="0" step="1">
+            <input id="hourlyRate" type="number" min="0" step="1" placeholder="Hourly wage">
           </label>
           <label>Weekend bonus per hour
-            <input id="weekendBonus" type="number" min="0" step="1">
+            <input id="weekendBonus" type="number" min="0" step="1" placeholder="Weekend bonus">
           </label>
           <label>Salary received
             <select id="payType">
@@ -114,7 +134,7 @@
             </select>
           </label>
           <label id="monthDayWrap">Day of month
-            <input id="monthDay" type="number" min="1" max="31">
+            <input id="monthDay" type="number" min="1" max="31" placeholder="Payday">
           </label>
           <label id="weekDayWrap" class="hidden">Day of week
             <select id="weekDay">
@@ -140,7 +160,7 @@
             <input id="entryDate" type="date" required>
           </label>
           <label>Hours
-            <input id="entryHours" type="number" min="0" step="0.25" placeholder="2.5" required>
+            <input id="entryHours" type="number" min="0" step="0.25" placeholder="Enter hours worked" required>
           </label>
           <label class="wide">Work note
             <input id="entryNote" type="text" maxlength="90" placeholder="Kitchen job, washing dishes, stocking shelves...">
@@ -218,12 +238,16 @@
 
     <section class="panel analytics-panel">
       <div class="section-title">
+        <h2>Earnings trend</h2>
+        <span>Daily totals this period</span>
+      </div>
+      <div id="earningsChart" class="earnings-chart"></div>
+    </section>
+
+    <section class="panel analytics-panel">
+      <div class="section-title">
         <h2>Spending pattern</h2>
-        <div class="button-row">
-          <button id="importData" type="button">Import JSON</button>
-          <button id="exportData" type="button">Export JSON</button>
-        </div>
-        <input class="hidden" id="importFile" type="file" accept="application/json,.json">
+        <span>By category</span>
       </div>
       <div id="categoryBreakdown" class="breakdown"></div>
     </section>

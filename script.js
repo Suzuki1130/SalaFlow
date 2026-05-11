@@ -16,7 +16,7 @@ const els = {
   monthDay: $("#monthDay"), weekDay: $("#weekDay"), monthDayWrap: $("#monthDayWrap"), weekDayWrap: $("#weekDayWrap"),
   entryForm: $("#entryForm"), entryDate: $("#entryDate"), entryHours: $("#entryHours"), entryNote: $("#entryNote"), entryStatus: $("#entryStatus"),
   periodText: $("#periodText"), salaryText: $("#salaryText"), hoursText: $("#hoursText"), remainingText: $("#remainingText"),
-  plannedRemainingText: $("#plannedRemainingText"), savingsRateText: $("#savingsRateText"),
+  monthSalaryText: $("#monthSalaryText"), plannedRemainingText: $("#plannedRemainingText"), savingsRateText: $("#savingsRateText"),
   dailyAverageText: $("#dailyAverageText"), weeklyAverageText: $("#weeklyAverageText"), forecastText: $("#forecastText"),
   calendarTitle: $("#calendarTitle"), calendar: $("#calendar"), prevMonth: $("#prevMonth"), nextMonth: $("#nextMonth"),
   entryList: $("#entryList"), entryCount: $("#entryCount"),
@@ -29,8 +29,8 @@ const els = {
   expenseForm: $("#expenseForm"), expenseName: $("#expenseName"), expenseCategory: $("#expenseCategory"),
   expenseAmount: $("#expenseAmount"), expenseDate: $("#expenseDate"), expenseNote: $("#expenseNote"), expenseList: $("#expenseList"),
   budgetTotalText: $("#budgetTotalText"), expenseTotalText: $("#expenseTotalText"), budgetSummary: $("#budgetSummary"),
-  categoryBreakdown: $("#categoryBreakdown"), importData: $("#importData"), importFile: $("#importFile"),
-  exportData: $("#exportData"), quickNotes: $("#quickNotes"), currentFolderBadge: $("#currentFolderBadge"),
+  categoryBreakdown: $("#categoryBreakdown"), earningsChart: $("#earningsChart"),
+  quickNotes: $("#quickNotes"), currentFolderBadge: $("#currentFolderBadge"),
 };
 
 init();
@@ -214,7 +214,10 @@ function bindEvents() {
     const folder = activeFolder();
     const date = els.entryDate.value;
     const hours = Number(els.entryHours.value);
-    if (!date || hours <= 0) return;
+    if (!date || !Number.isFinite(hours) || hours <= 0) {
+      showEntryStatus("Add a valid date and hours");
+      return;
+    }
 
     const existing = folder.entries.find((entry) => entry.date === date);
     const status = existing ? "Entry updated" : "Entry saved";
@@ -265,17 +268,25 @@ function bindEvents() {
 
   els.budgetForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    addBudget(els.budgetCategory.value, els.budgetAmount.value);
-    els.budgetAmount.value = "";
+    if (addBudget(els.budgetCategory.value, els.budgetAmount.value)) {
+      els.budgetAmount.value = "";
+      showEntryStatus("Budget saved");
+    } else {
+      showEntryStatus("Add a valid budget amount");
+    }
   });
 
   els.expenseForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    addExpense();
-    els.expenseName.value = "";
-    els.expenseAmount.value = "";
-    els.expenseNote.value = "";
-    els.expenseDate.value = toISO(new Date());
+    if (addExpense()) {
+      els.expenseName.value = "";
+      els.expenseAmount.value = "";
+      els.expenseNote.value = "";
+      els.expenseDate.value = toISO(new Date());
+      showEntryStatus("Expense saved");
+    } else {
+      showEntryStatus("Add a name, date, and valid amount");
+    }
   });
 
   els.quickNotes.addEventListener("input", () => {
@@ -284,9 +295,6 @@ function bindEvents() {
     saveState();
   });
 
-  els.importData.addEventListener("click", () => els.importFile.click());
-  els.importFile.addEventListener("change", importJSON);
-  els.exportData.addEventListener("click", exportJSON);
   document.addEventListener("keydown", handleModalKeydown);
 }
 
@@ -299,6 +307,7 @@ function render() {
   renderEntries();
   renderFolders();
   renderMoneyLists();
+  renderEarningsChart();
   renderCategoryBreakdown();
 }
 
@@ -419,6 +428,7 @@ function renderSummary() {
 
   els.periodText.textContent = `${shortDate(start)} - ${shortDate(end)}`;
   els.salaryText.textContent = money(totals.salary);
+  els.monthSalaryText.textContent = money(monthEarnings());
   els.hoursText.textContent = `${prettyNumber(totals.hours)}h`;
   els.remainingText.textContent = money(totals.afterExpenses);
   els.plannedRemainingText.textContent = money(totals.afterPlans);
@@ -584,10 +594,45 @@ function renderCategoryBreakdown() {
   });
 }
 
+function renderEarningsChart() {
+  const entries = includedEntries();
+  const latest = entries.at(-1);
+  els.earningsChart.innerHTML = latest
+    ? ""
+    : `<div class="empty">Add work entries to see your latest earning here.</div>`;
+
+  if (!latest) return;
+
+  const amount = entryPay(latest);
+  const previous = entries.at(-2);
+  const previousAmount = previous ? entryPay(previous) : 0;
+  const change = previous ? amount - previousAmount : 0;
+  const changeText = previous
+    ? `${change >= 0 ? "+" : "-"}${money(Math.abs(change))} vs previous`
+    : "First entry this period";
+  const percent = previousAmount ? clamp((amount / previousAmount) * 100, 8, 180) : 100;
+
+  const item = document.createElement("article");
+  item.className = "latest-earning";
+  item.innerHTML = `
+    <div class="latest-copy">
+      <span>Latest earning</span>
+      <strong>${money(amount)}</strong>
+      <p>${longDate(fromISO(latest.date))} · ${prettyNumber(latest.hours)} hours</p>
+      <p class="${change >= 0 ? "fit" : "tight"}">${changeText}</p>
+    </div>
+    <div class="latest-meter" aria-hidden="true">
+      <div class="latest-meter-fill" style="width: ${percent}%"></div>
+    </div>
+    <div class="latest-note">${escapeHTML(latest.note || "No note added")}</div>
+    `;
+  els.earningsChart.append(item);
+}
+
 function addBudget(category, amount) {
   const folder = activeFolder();
   const parsed = Number(amount);
-  if (!category || parsed <= 0) return;
+  if (!category || !Number.isFinite(parsed) || parsed <= 0) return false;
   const existing = folder.budgets.find((budget) => budget.category === category);
   if (existing) {
     existing.amount = parsed;
@@ -596,12 +641,13 @@ function addBudget(category, amount) {
   }
   saveState();
   render();
+  return true;
 }
 
 function addExpense() {
   const folder = activeFolder();
   const amount = Number(els.expenseAmount.value);
-  if (!els.expenseName.value.trim() || amount <= 0 || !els.expenseDate.value) return;
+  if (!els.expenseName.value.trim() || !Number.isFinite(amount) || amount <= 0 || !els.expenseDate.value) return false;
   folder.expenses.push({
     id: randomId(),
     name: els.expenseName.value.trim(),
@@ -612,6 +658,7 @@ function addExpense() {
   });
   saveState();
   render();
+  return true;
 }
 
 function confirmDelete(button, key, id) {
@@ -692,6 +739,18 @@ function folderTotals(folder) {
   return { hours, salary, expenses };
 }
 
+function monthEarnings(folder = activeFolder()) {
+  const now = new Date();
+  const month = now.getMonth();
+  const year = now.getFullYear();
+  return folder.entries
+    .filter((entry) => {
+      const date = fromISO(entry.date);
+      return date.getFullYear() === year && date.getMonth() === month;
+    })
+    .reduce((sum, entry) => sum + entryPay(entry, folder), 0);
+}
+
 function entryPay(entry, folder = activeFolder()) {
   return entry.hours * rateForDate(entry.date, folder);
 }
@@ -710,48 +769,6 @@ function categoryTotals(expenses) {
     map.set(expense.category, (map.get(expense.category) || 0) + expense.amount);
     return map;
   }, new Map());
-}
-
-function exportJSON() {
-  const data = JSON.stringify({ exportedAt: new Date().toISOString(), ...state }, null, 2);
-  const blob = new Blob([data], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `salaflow-export-${toISO(new Date())}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-function importJSON(event) {
-  const [file] = event.target.files;
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.addEventListener("load", () => {
-    try {
-      const parsed = JSON.parse(String(reader.result || "{}"));
-      replaceState(normalizeState(parsed));
-      saveState();
-      calendarDate = firstOfMonth(new Date());
-      render();
-      showEntryStatus("Import complete");
-    } catch {
-      showEntryStatus("Import failed");
-    } finally {
-      els.importFile.value = "";
-    }
-  });
-  reader.addEventListener("error", () => {
-    els.importFile.value = "";
-    showEntryStatus("Import failed");
-  });
-  reader.readAsText(file);
-}
-
-function replaceState(nextState) {
-  Object.keys(state).forEach((key) => delete state[key]);
-  Object.assign(state, nextState);
 }
 
 function money(value) {
