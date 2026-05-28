@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f5fbf8">
   <title>SalaFlow | Salary Tracker</title>
   <link rel="icon" type="image/png" href="SalaFlow.png">
@@ -25,12 +25,13 @@
 
     <nav class="nav">
       <a href="#dashboard">Dashboard</a>
-      <a href="#entries">Work entries</a>
-      <a href="#notesPanel">Notes</a>
-      <a href="#budget">Budget</a>
-      <a href="#expenses">Expenses</a>
-      <a href="#insights">Insights</a>
+      <a href="#calendarPlanning">Calendar Planning</a>
     </nav>
+
+    <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false">
+      <span class="theme-icon" aria-hidden="true"></span>
+      <span id="themeToggleText">Dark mode</span>
+    </button>
 
     <section class="side-card" id="noteFolders">
       <div class="section-title">
@@ -244,20 +245,77 @@
       <div id="earningsChart" class="earnings-chart"></div>
     </section>
 
-    <section class="panel analytics-panel">
-      <div class="section-title">
-        <h2>Spending pattern</h2>
-        <span>By category</span>
-      </div>
-      <div id="categoryBreakdown" class="breakdown"></div>
-    </section>
-
     <section class="panel notes-panel" id="notesPanel">
       <div class="section-title">
         <h2>Notes</h2>
         <span>Saved in your browser</span>
       </div>
       <textarea id="quickNotes" maxlength="800" placeholder="Write salary notes, reminders, or what you want to remember before payday."></textarea>
+    </section>
+  </main>
+
+  <main class="main app-view hidden" id="calendarPlanning">
+    <header class="topbar">
+      <div class="top-brand">
+        <img src="SalaFlow.png" alt="SalaFlow logo">
+        <div>
+          <strong>Calendar Planning</strong>
+          <span>Plan days, spending, budgets, and reminders</span>
+        </div>
+      </div>
+      <div class="current-folder-badge" id="planningMonthBadge">This month</div>
+    </header>
+
+    <header class="hero planning-hero">
+      <div>
+        <p>Daily planning</p>
+        <h1>Map out your schedule and money plans by date.</h1>
+      </div>
+    </header>
+
+    <section class="grid planning-layout">
+      <article class="panel planning-calendar-panel">
+        <div class="calendar-head">
+          <button id="prevPlanningMonth" type="button" title="Previous month">&lt;</button>
+          <h2 id="planningCalendarTitle">Calendar</h2>
+          <button id="nextPlanningMonth" type="button" title="Next month">&gt;</button>
+        </div>
+        <div class="weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+        <div id="planningCalendar" class="calendar planning-calendar"></div>
+      </article>
+
+      <article class="panel plan-editor-panel">
+        <div class="section-title">
+          <h2 id="selectedPlanDateTitle">Plan a day</h2>
+          <span id="planStatus" aria-live="polite"></span>
+        </div>
+        <form id="planForm" class="form-grid">
+          <label class="wide">Date
+            <input id="planDate" type="date" required>
+          </label>
+          <label class="wide">Plan or event
+            <input id="planTitle" type="text" maxlength="80" placeholder="Work shift, bill payment, study day..." required>
+          </label>
+          <label>Expected spending
+            <input id="planSpending" type="number" min="0" step="1" placeholder="Optional">
+          </label>
+          <label>Budget
+            <input id="planBudget" type="number" min="0" step="1" placeholder="Optional">
+          </label>
+          <label class="wide">Notes or reminders
+            <textarea id="planNotes" maxlength="240" placeholder="What should you remember for this day?"></textarea>
+          </label>
+          <button class="primary wide" type="submit">Save plan</button>
+        </form>
+      </article>
+    </section>
+
+    <section class="panel planning-list-panel">
+      <div class="section-title">
+        <h2 id="dayPlanListTitle">Plans for selected date</h2>
+        <span id="dayPlanCount">0 plans</span>
+      </div>
+      <div id="dayPlanList" class="stack"></div>
     </section>
   </main>
 

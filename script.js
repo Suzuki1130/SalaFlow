@@ -1,12 +1,16 @@
 const STORAGE_KEY = "salaflow-data-v1";
 const SIDEBAR_KEY = "salaflow-sidebar-collapsed";
+const THEME_KEY = "salaflow-theme";
 const CONFIRM_RESET_MS = 2600;
 const CATEGORIES = ["Food", "Transport", "Bills", "Shopping", "Savings", "Other"];
 
 const state = loadState();
 let calendarDate = firstOfMonth(new Date());
+let planningDate = firstOfMonth(new Date());
+let selectedPlanDate = toISO(new Date());
 let pendingDelete = null;
 let entryStatusTimer = null;
+let planStatusTimer = null;
 let lastFocusedElement = null;
 let activeModal = null;
 
@@ -29,8 +33,16 @@ const els = {
   expenseForm: $("#expenseForm"), expenseName: $("#expenseName"), expenseCategory: $("#expenseCategory"),
   expenseAmount: $("#expenseAmount"), expenseDate: $("#expenseDate"), expenseNote: $("#expenseNote"), expenseList: $("#expenseList"),
   budgetTotalText: $("#budgetTotalText"), expenseTotalText: $("#expenseTotalText"), budgetSummary: $("#budgetSummary"),
-  categoryBreakdown: $("#categoryBreakdown"), earningsChart: $("#earningsChart"),
+  earningsChart: $("#earningsChart"),
   quickNotes: $("#quickNotes"), currentFolderBadge: $("#currentFolderBadge"),
+  dashboard: $("#dashboard"), calendarPlanning: $("#calendarPlanning"), navLinks: document.querySelectorAll(".nav a"),
+  themeToggle: $("#themeToggle"), themeToggleText: $("#themeToggleText"),
+  planningMonthBadge: $("#planningMonthBadge"), planningCalendarTitle: $("#planningCalendarTitle"),
+  planningCalendar: $("#planningCalendar"), prevPlanningMonth: $("#prevPlanningMonth"), nextPlanningMonth: $("#nextPlanningMonth"),
+  planForm: $("#planForm"), planDate: $("#planDate"), planTitle: $("#planTitle"), planSpending: $("#planSpending"),
+  planBudget: $("#planBudget"), planNotes: $("#planNotes"), planStatus: $("#planStatus"),
+  selectedPlanDateTitle: $("#selectedPlanDateTitle"), dayPlanListTitle: $("#dayPlanListTitle"),
+  dayPlanCount: $("#dayPlanCount"), dayPlanList: $("#dayPlanList"),
 };
 
 init();
@@ -38,9 +50,12 @@ init();
 function init() {
   els.entryDate.value = toISO(new Date());
   els.expenseDate.value = toISO(new Date());
+  els.planDate.value = selectedPlanDate;
   syncFolderControls();
+  applyTheme(localStorage.getItem(THEME_KEY) || "light");
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_KEY) === "true");
   bindEvents();
+  routeFromHash();
   render();
 }
 
@@ -108,7 +123,8 @@ function baseState() {
   const repeat = createWorkspaceFolder({ name: "Repeat", note: "A separate folder for recurring salary planning." });
   return {
     folders: [first, repeat],
-    activeFolderId: first.id
+    activeFolderId: first.id,
+    plans: []
   };
 }
 
@@ -139,7 +155,7 @@ function normalizeState(data) {
     ? data.activeFolderId
     : folders[0].id;
 
-  return { folders, activeFolderId };
+  return { folders, activeFolderId, plans: normalizePlans(data.plans) };
 }
 
 function normalizeWorkspaceFolder(folder, rootData) {
@@ -190,11 +206,33 @@ function normalizeExpenses(expenses) {
   })).filter((item) => item.amount > 0);
 }
 
+function normalizePlans(plans) {
+  const today = toISO(new Date());
+  return asArray(plans).map((item) => ({
+    id: item.id || randomId(),
+    date: normalizeDate(item.date, today),
+    title: String(item.title || item.name || "Plan").trim() || "Plan",
+    spending: Math.max(0, Number(item.spending) || 0),
+    budget: Math.max(0, Number(item.budget) || 0),
+    notes: String(item.notes || item.note || "").trim()
+  })).filter((item) => item.date && item.title);
+}
+
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 function bindEvents() {
+  window.addEventListener("hashchange", routeFromHash);
+  els.navLinks.forEach((link) => link.addEventListener("click", () => {
+    if (!link.getAttribute("href").startsWith("#calendarPlanning")) showView("dashboard");
+  }));
+
+  els.themeToggle.addEventListener("click", () => {
+    const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    applyTheme(nextTheme);
+  });
+
   [els.currency, els.hourlyRate, els.weekendBonus, els.payType, els.monthDay, els.weekDay].forEach((field) => {
     field.addEventListener("input", () => {
       const folder = activeFolder();
@@ -243,6 +281,16 @@ function bindEvents() {
   els.nextMonth.addEventListener("click", () => {
     calendarDate = addMonths(calendarDate, 1);
     renderCalendar();
+  });
+
+  els.prevPlanningMonth.addEventListener("click", () => {
+    planningDate = addMonths(planningDate, -1);
+    renderPlanningCalendar();
+  });
+
+  els.nextPlanningMonth.addEventListener("click", () => {
+    planningDate = addMonths(planningDate, 1);
+    renderPlanningCalendar();
   });
 
   els.sidebarToggle.addEventListener("click", () => {
@@ -295,6 +343,18 @@ function bindEvents() {
     saveState();
   });
 
+  els.planDate.addEventListener("input", () => {
+    if (!els.planDate.value) return;
+    selectedPlanDate = els.planDate.value;
+    planningDate = firstOfMonth(fromISO(selectedPlanDate));
+    renderPlanning();
+  });
+
+  els.planForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    addPlan();
+  });
+
   document.addEventListener("keydown", handleModalKeydown);
 }
 
@@ -308,7 +368,38 @@ function render() {
   renderFolders();
   renderMoneyLists();
   renderEarningsChart();
-  renderCategoryBreakdown();
+  renderPlanning();
+}
+
+function routeFromHash() {
+  const hash = window.location.hash || "#dashboard";
+  const planning = hash === "#calendarPlanning";
+  showView(planning ? "calendarPlanning" : "dashboard");
+
+  if (!planning && hash !== "#dashboard") {
+    const target = document.querySelector(hash);
+    if (target) window.setTimeout(() => target.scrollIntoView({ block: "start" }), 0);
+  }
+}
+
+function showView(view) {
+  const planning = view === "calendarPlanning";
+  els.dashboard.classList.toggle("hidden", planning);
+  els.calendarPlanning.classList.toggle("hidden", !planning);
+  if (planning) window.scrollTo({ top: 0 });
+  els.navLinks.forEach((link) => {
+    const href = link.getAttribute("href");
+    link.classList.toggle("active", planning ? href === "#calendarPlanning" : href === "#dashboard");
+  });
+}
+
+function applyTheme(theme) {
+  const normalized = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = normalized;
+  localStorage.setItem(THEME_KEY, normalized);
+  els.themeToggle.setAttribute("aria-pressed", String(normalized === "dark"));
+  els.themeToggleText.textContent = normalized === "dark" ? "Light mode" : "Dark mode";
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", normalized === "dark" ? "#141b19" : "#f5fbf8");
 }
 
 function setSidebarCollapsed(collapsed) {
@@ -481,6 +572,72 @@ function renderCalendar() {
   }
 }
 
+function renderPlanning() {
+  renderPlanningCalendar();
+  renderDayPlans();
+}
+
+function renderPlanningCalendar() {
+  const year = planningDate.getFullYear();
+  const month = planningDate.getMonth();
+  const first = new Date(year, month, 1);
+  const gridStart = addDays(first, -first.getDay());
+  const plansByDate = plansGroupedByDate();
+
+  els.planningCalendarTitle.textContent = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  els.planningMonthBadge.textContent = `${state.plans.filter((plan) => {
+    const date = fromISO(plan.date);
+    return date.getFullYear() === year && date.getMonth() === month;
+  }).length} monthly plans`;
+  els.planningCalendar.innerHTML = "";
+
+  for (let index = 0; index < 42; index += 1) {
+    const day = addDays(gridStart, index);
+    const iso = toISO(day);
+    const plans = plansByDate.get(iso) || [];
+    const firstPlan = plans[0];
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "day";
+    if (day.getMonth() !== month) button.classList.add("outside");
+    if (iso === selectedPlanDate) button.classList.add("selected");
+    button.innerHTML = `
+      <span class="day-number">${day.getDate()}${plans.length ? `<span class="planning-day-dot">${plans.length}</span>` : ""}</span>
+      ${firstPlan ? `<div class="plan-preview"><strong>${escapeHTML(firstPlan.title)}</strong><span>${planMoneyPreview(plans)}</span></div>` : ""}
+    `;
+    button.addEventListener("click", () => selectPlanDate(iso));
+    els.planningCalendar.append(button);
+  }
+}
+
+function renderDayPlans() {
+  const date = fromISO(selectedPlanDate);
+  const plans = state.plans
+    .filter((plan) => plan.date === selectedPlanDate)
+    .sort((a, b) => a.title.localeCompare(b.title));
+
+  els.planDate.value = selectedPlanDate;
+  els.selectedPlanDateTitle.textContent = `Plan ${longDate(date)}`;
+  els.dayPlanListTitle.textContent = `Plans for ${longDate(date)}`;
+  els.dayPlanCount.textContent = `${plans.length} ${plans.length === 1 ? "plan" : "plans"}`;
+  els.dayPlanList.innerHTML = plans.length ? "" : `<div class="empty">No plans for this date yet. Add one with the form above.</div>`;
+
+  plans.forEach((plan) => {
+    const item = document.createElement("article");
+    item.className = "item";
+    item.innerHTML = `
+      <div class="item-top"><strong>${escapeHTML(plan.title)}</strong><button class="delete" type="button" aria-label="Delete plan">x</button></div>
+      <div class="plan-money-row">
+        <span class="chip">Expected ${money(plan.spending)}</span>
+        <span class="chip">Budget ${money(plan.budget)}</span>
+      </div>
+      <div>${escapeHTML(plan.notes || "No reminder added")}</div>
+    `;
+    item.querySelector("button").addEventListener("click", (event) => confirmDelete(event.currentTarget, "plans", plan.id));
+    els.dayPlanList.append(item);
+  });
+}
+
 function renderEntries() {
   const entries = includedEntries();
   els.entryList.innerHTML = entries.length ? "" : `<div class="empty">No work entries in this folder for the current salary period yet.</div>`;
@@ -576,24 +733,6 @@ function renderExpenseList() {
   });
 }
 
-function renderCategoryBreakdown() {
-  const expenses = periodExpenses();
-  const totals = categoryTotals(expenses);
-  const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  els.categoryBreakdown.innerHTML = totalSpent ? "" : `<div class="empty">Add categorized expenses in this folder to see your spending pattern.</div>`;
-
-  [...totals.entries()].sort((a, b) => b[1] - a[1]).forEach(([category, amount]) => {
-    const percent = totalSpent ? (amount / totalSpent) * 100 : 0;
-    const row = document.createElement("article");
-    row.className = "breakdown-row";
-    row.innerHTML = `
-      <div class="item-top"><strong>${escapeHTML(category)}</strong><span>${money(amount)} - ${prettyNumber(percent)}%</span></div>
-      <div class="progress"><span style="width: ${Math.min(percent, 100)}%"></span></div>
-    `;
-    els.categoryBreakdown.append(row);
-  });
-}
-
 function renderEarningsChart() {
   const entries = includedEntries();
   const latest = entries.at(-1);
@@ -661,6 +800,52 @@ function addExpense() {
   return true;
 }
 
+function addPlan() {
+  const title = els.planTitle.value.trim();
+  const date = els.planDate.value;
+  const spending = Number(els.planSpending.value) || 0;
+  const budget = Number(els.planBudget.value) || 0;
+
+  if (!title || !date || spending < 0 || budget < 0) {
+    showPlanStatus("Add a date and plan title");
+    return;
+  }
+
+  state.plans.push({
+    id: randomId(),
+    date,
+    title,
+    spending,
+    budget,
+    notes: els.planNotes.value.trim()
+  });
+
+  selectedPlanDate = date;
+  planningDate = firstOfMonth(fromISO(date));
+  els.planTitle.value = "";
+  els.planSpending.value = "";
+  els.planBudget.value = "";
+  els.planNotes.value = "";
+  saveState();
+  renderPlanning();
+  showPlanStatus("Plan saved");
+}
+
+function showPlanStatus(message) {
+  window.clearTimeout(planStatusTimer);
+  els.planStatus.textContent = message;
+  planStatusTimer = window.setTimeout(() => {
+    els.planStatus.textContent = "";
+  }, 2200);
+}
+
+function selectPlanDate(date) {
+  selectedPlanDate = date;
+  els.planDate.value = date;
+  renderPlanning();
+  els.planTitle.focus();
+}
+
 function confirmDelete(button, key, id) {
   const token = `${key}:${id}`;
   if (pendingDelete === token) {
@@ -699,6 +884,8 @@ function removeItem(key, id) {
     if (state.activeFolderId === id) {
       state.activeFolderId = state.folders[0].id;
     }
+  } else if (key === "plans") {
+    state.plans = state.plans.filter((item) => item.id !== id);
   } else {
     folder[key] = folder[key].filter((item) => item.id !== id);
   }
@@ -769,6 +956,21 @@ function categoryTotals(expenses) {
     map.set(expense.category, (map.get(expense.category) || 0) + expense.amount);
     return map;
   }, new Map());
+}
+
+function plansGroupedByDate() {
+  return state.plans.reduce((map, plan) => {
+    if (!map.has(plan.date)) map.set(plan.date, []);
+    map.get(plan.date).push(plan);
+    return map;
+  }, new Map());
+}
+
+function planMoneyPreview(plans) {
+  const spending = plans.reduce((sum, plan) => sum + plan.spending, 0);
+  const budget = plans.reduce((sum, plan) => sum + plan.budget, 0);
+  if (spending || budget) return `${money(spending)} expected / ${money(budget)} budget`;
+  return `${plans.length} ${plans.length === 1 ? "plan" : "plans"}`;
 }
 
 function money(value) {
